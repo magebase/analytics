@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -25,6 +26,7 @@ type App struct {
 	analyticsService *AnalyticsService
 	kafkaConsumer    *KafkaConsumerService
 	dashboardService *DashboardService
+	funnelService    *FunnelService
 }
 
 // NewApp creates a new analytics application instance
@@ -55,6 +57,9 @@ func NewApp(port string) *App {
 	// Initialize dashboard service
 	dashboardService := NewDashboardService()
 
+	// Initialize funnel service
+	funnelService := NewFunnelService(analyticsService)
+
 	// Create app instance first
 	appInstance := &App{
 		app:              app,
@@ -63,6 +68,7 @@ func NewApp(port string) *App {
 		analyticsService: analyticsService,
 		kafkaConsumer:    nil, // Will be initialized after creation
 		dashboardService: dashboardService,
+		funnelService:    funnelService,
 	}
 
 	// Start dashboard service
@@ -132,6 +138,12 @@ func (s *App) SetupRoutes() {
 
 	// Real-time dashboard WebSocket endpoint
 	s.app.Get("/api/v1/dashboard/feed", websocket.New(s.dashboardService.HandleWebSocket))
+
+	// Funnel analysis endpoints
+	funnels := s.app.Group("/api/v1/funnels")
+	funnels.Post("/", s.createFunnel)
+	funnels.Get("/:id/compute", s.computeFunnel)
+	funnels.Get("/:id/steps", s.getFunnelSteps)
 
 	// Kafka consumer status endpoint
 	s.app.Get("/api/v1/kafka/status", s.getKafkaStatus)
@@ -274,4 +286,135 @@ func (s *App) GetAnalyticsService() *AnalyticsService {
 // GetDashboardService returns the dashboard service for testing purposes
 func (s *App) GetDashboardService() *DashboardService {
 	return s.dashboardService
+}
+
+// GetFunnelService returns the funnel service for testing purposes
+func (s *App) GetFunnelService() *FunnelService {
+	return s.funnelService
+}
+
+// createFunnel handles funnel creation requests
+func (s *App) createFunnel(c *fiber.Ctx) error {
+	var request struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Steps       []struct {
+			Name        string                 `json:"name"`
+			EventType   string                 `json:"event_type"`
+			Filters     map[string]interface{} `json:"filters,omitempty"`
+			Order       int                    `json:"order"`
+			Description string                 `json:"description,omitempty"`
+		} `json:"steps"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Convert request steps to Step structs
+	var steps []Step
+	for _, reqStep := range request.Steps {
+		step := Step{
+			ID:          fmt.Sprintf("step_%d", reqStep.Order),
+			Name:        reqStep.Name,
+			EventType:   reqStep.EventType,
+			Filters:     reqStep.Filters,
+			Order:       reqStep.Order,
+			Description: reqStep.Description,
+		}
+		steps = append(steps, step)
+	}
+
+	funnel, err := s.funnelService.CreateFunnel(c.Context(), request.Name, request.Description, steps)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"funnel":  funnel,
+		"message": "Funnel created successfully",
+	})
+}
+
+// computeFunnel handles funnel computation requests
+func (s *App) computeFunnel(c *fiber.Ctx) error {
+	funnelID := c.Params("id")
+	if funnelID == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "Funnel ID is required",
+		})
+	}
+
+	// Parse query parameters
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+	userID := c.Query("user_id")
+
+	if startDate == "" {
+		startDate = time.Now().AddDate(0, 0, -30).Format("2006-01-02")
+	}
+	if endDate == "" {
+		endDate = time.Now().Format("2006-01-02")
+	}
+
+	// Parse dates
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid start_date format. Use YYYY-MM-DD",
+		})
+	}
+
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid end_date format. Use YYYY-MM-DD",
+		})
+	}
+
+	query := FunnelQuery{
+		FunnelID: funnelID,
+		UserID:   userID,
+		Start:    start,
+		End:      end,
+	}
+
+	result, err := s.funnelService.ComputeFunnel(c.Context(), query)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status": "success",
+		"result": result,
+	})
+}
+
+// getFunnelSteps retrieves the steps for a specific funnel
+func (s *App) getFunnelSteps(c *fiber.Ctx) error {
+	funnelID := c.Params("id")
+	if funnelID == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "Funnel ID is required",
+		})
+	}
+
+	steps, err := s.funnelService.GetFunnelSteps(c.Context(), funnelID)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status": "success",
+		"steps":  steps,
+	})
 }

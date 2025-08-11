@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gofiber/contrib/websocket"
-	"github.com/gofiber/fiber/v2"
 )
 
 // DashboardService provides real-time analytics data for dashboards
@@ -133,7 +132,7 @@ func (s *DashboardService) handleClientMessage(conn *websocket.Conn, message []b
 			}
 		case "ping":
 			// Respond to ping with pong
-			conn.WriteJSON(fiber.Map{"type": "pong"})
+			conn.WriteJSON(map[string]string{"type": "pong"})
 		}
 	}
 }
