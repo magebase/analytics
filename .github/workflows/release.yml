@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - "release/**"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm install -g semantic-release @semantic-release/changelog @semantic-release/git
+      - name: Build and Push Docker image (sha tag)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Ensure Dockerfile uses Go 1.23 or higher for builds
+
+      - name: Release
+        id: semantic_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx semantic-release > release.log 2>&1
+          echo "RELEASE_VERSION=$(grep -oE 'Published release ([0-9]+\.[0-9]+\.[0-9]+)' release.log | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" >> $GITHUB_ENV
+
+      - name: Tag and Push Docker image (release version)
+        if: env.RELEASE_VERSION != ''
+        run: |
+          docker tag ghcr.io/${{ github.repository }}:${{ github.sha }} ghcr.io/${{ github.repository }}:$RELEASE_VERSION
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker push ghcr.io/${{ github.repository }}:$RELEASE_VERSION
+
+      - name: Tag and Push Docker image (latest)
+        if: env.RELEASE_VERSION != '' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag ghcr.io/${{ github.repository }}:${{ github.sha }} ghcr.io/${{ github.repository }}:latest
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker push ghcr.io/${{ github.repository }}:latest

@@ -1,0 +1,63 @@
+name: Billing API CI
+
+on:
+  push:
+    branches:
+      - main
+      - "release/**"
+  pull_request:
+    branches:
+      - main
+      - "release/**"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    env:
+      # Only use secrets or variables that are actually defined in GitHub settings
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ vars.POSTGRES_PASSWORD }}
+      POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+      CLICKHOUSE_USER: ${{ vars.CLICKHOUSE_USER }}
+      CLICKHOUSE_PASSWORD: ${{ vars.CLICKHOUSE_PASSWORD }}
+      CLICKHOUSE_DB: ${{ vars.CLICKHOUSE_DB }}
+      VICTORIA_TRACES_ENDPOINT: ${{ vars.VICTORIA_TRACES_ENDPOINT }}
+      VICTORIA_METRICS_ENDPOINT: ${{ vars.VICTORIA_METRICS_ENDPOINT }}
+      VICTORIA_LOGS_ENDPOINT: ${{ vars.VICTORIA_LOGS_ENDPOINT }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - name: Run tests
+        run: go test ./...
+      - name: Build Go project
+        run: go build ./...
+  build-and-scan:
+    name: Build Docker image and run Trivy scan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set image tag
+        id: set-tag
+        run: echo "image-tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+      - name: Build Docker image
+        run: |
+          if [ -z "${{ github.repository }}" ]; then
+            echo "Error: github.repository is not set" >&2
+            exit 1
+          fi
+          docker build -t ghcr.io/${{ github.repository }}:${{ github.sha }} .
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "ghcr.io/${{ github.repository }}:${{ github.sha }}"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
