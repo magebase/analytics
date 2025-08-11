@@ -108,18 +108,18 @@ func (s *KafkaConsumerService) Start() error {
 func (s *KafkaConsumerService) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if !s.running {
 		return
 	}
 
 	s.running = false
 	s.cancel()
-	
+
 	if err := s.consumer.Close(); err != nil {
 		log.Printf("Error closing Kafka consumer: %v", err)
 	}
-	
+
 	log.Println("Kafka consumer service stopped")
 }
 
@@ -188,46 +188,46 @@ func (s *KafkaConsumerService) routeEvent(event *CrossServiceEvent) {
 // handleBillingEvent handles billing-related events
 func (s *KafkaConsumerService) handleBillingEvent(ctx context.Context, event *CrossServiceEvent) error {
 	log.Printf("Processing billing event: %s for user: %s", event.EventType, event.UserID)
-	
+
 	// Extract billing data
 	amount, _ := event.Data["amount"].(float64)
 	description, _ := event.Data["description"].(string)
-	
+
 	// Create billing event
 	billingEvent := NewBillingEvent(event.UserID, event.EventType, amount, description)
-	
+
 	// Store or process the billing event
 	log.Printf("Created billing event: %s with amount: %.2f", billingEvent.ID, billingEvent.Amount)
-	
+
 	return nil
 }
 
 // handleAuthEvent handles authentication-related events
 func (s *KafkaConsumerService) handleAuthEvent(ctx context.Context, event *CrossServiceEvent) error {
 	log.Printf("Processing auth event: %s for user: %s", event.EventType, event.UserID)
-	
+
 	// Process authentication events (e.g., track user sessions, security metrics)
 	log.Printf("Processed auth event: %s", event.EventType)
-	
+
 	return nil
 }
 
 // handlePaymentEvent handles payment-related events
 func (s *KafkaConsumerService) handlePaymentEvent(ctx context.Context, event *CrossServiceEvent) error {
 	log.Printf("Processing payment event: %s for user: %s", event.EventType, event.UserID)
-	
+
 	// Process payment events (e.g., track transaction volumes, success rates)
 	log.Printf("Processed payment event: %s", event.EventType)
-	
+
 	return nil
 }
 
 // handleAnalyticsEvent handles analytics-related events
 func (s *KafkaConsumerService) handleAnalyticsEvent(ctx context.Context, event *CrossServiceEvent) error {
 	log.Printf("Processing analytics event: %s for user: %s", event.EventType, event.UserID)
-	
+
 	// Process analytics events (e.g., aggregate metrics, update dashboards)
 	log.Printf("Processed analytics event: %s", event.EventType)
-	
+
 	return nil
 }

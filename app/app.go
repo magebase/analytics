@@ -18,11 +18,11 @@ import (
 
 // App represents the analytics application
 type App struct {
-	app             *fiber.App
-	tracer          trace.Tracer
-	port            string
+	app              *fiber.App
+	tracer           trace.Tracer
+	port             string
 	analyticsService *AnalyticsService
-	kafkaConsumer   *KafkaConsumerService
+	kafkaConsumer    *KafkaConsumerService
 }
 
 // NewApp creates a new analytics application instance
@@ -52,11 +52,11 @@ func NewApp(port string) *App {
 
 	// Create app instance first
 	appInstance := &App{
-		app:             app,
-		tracer:          tracer,
-		port:            port,
+		app:              app,
+		tracer:           tracer,
+		port:             port,
 		analyticsService: analyticsService,
-		kafkaConsumer:   nil, // Will be initialized after creation
+		kafkaConsumer:    nil, // Will be initialized after creation
 	}
 
 	// Initialize Kafka consumer service
@@ -115,12 +115,12 @@ func (s *App) getKafkaTopics() []string {
 func (s *App) SetupRoutes() {
 	// Health check endpoint
 	s.app.Get("/health", s.healthCheck)
-	
+
 	// Analytics endpoints
 	analytics := s.app.Group("/api/v1/analytics")
 	analytics.Post("/events", s.trackEvent)
 	analytics.Get("/usage", s.getUsage)
-	
+
 	// Kafka consumer status endpoint
 	s.app.Get("/api/v1/kafka/status", s.getKafkaStatus)
 }
@@ -243,8 +243,8 @@ func (s *App) getKafkaStatus(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"status": status,
-		"topics": s.getKafkaTopics(),
+		"status":  status,
+		"topics":  s.getKafkaTopics(),
 		"brokers": s.getKafkaBrokers(),
 	})
 }

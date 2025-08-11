@@ -11,13 +11,15 @@ import (
 
 // AnalyticsService handles analytics event processing and billing integration
 type AnalyticsService struct {
-	events map[string]*AnalyticsEvent // In-memory storage for now
+	events           map[string]*AnalyticsEvent // In-memory storage for now
+	schemaValidator  *SchemaValidator           // Schema validation for events
 }
 
 // NewAnalyticsService creates a new analytics service instance
 func NewAnalyticsService() *AnalyticsService {
 	return &AnalyticsService{
-		events: make(map[string]*AnalyticsEvent),
+		events:          make(map[string]*AnalyticsEvent),
+		schemaValidator: NewSchemaValidator(),
 	}
 }
 
@@ -28,14 +30,17 @@ func (s *AnalyticsService) TrackEvent(ctx context.Context, eventData map[string]
 		return nil, fmt.Errorf("invalid event data: %w", err)
 	}
 
+	// Enrich event data with additional metadata
+	enrichedData := s.enrichEventData(eventData, apiKey, userID)
+
 	// Create analytics event
 	event := &AnalyticsEvent{
 		ID:         uuid.New().String(),
-		EventType:  eventData["event_type"].(string),
+		EventType:  enrichedData["event_type"].(string),
 		UserID:     userID,
-		Page:       s.getStringValue(eventData, "page"),
+		Page:       s.getStringValue(enrichedData, "page"),
 		Timestamp:  time.Now(),
-		Properties: s.getMapValue(eventData, "properties"),
+		Properties: s.getMapValue(enrichedData, "properties"),
 		APIKey:     apiKey,
 	}
 
@@ -56,7 +61,7 @@ func (s *AnalyticsService) GetUsage(ctx context.Context, userID, startDateStr, e
 	// Parse dates - handle both date formats
 	var startDate, endDate time.Time
 	var err error
-	
+
 	// Try parsing as "2006-01-02" first
 	startDate, err = time.Parse("2006-01-02", startDateStr)
 	if err != nil {
@@ -66,7 +71,7 @@ func (s *AnalyticsService) GetUsage(ctx context.Context, userID, startDateStr, e
 			return nil, fmt.Errorf("invalid start date format: %w", err)
 		}
 	}
-	
+
 	endDate, err = time.Parse("2006-01-02", endDateStr)
 	if err != nil {
 		// Try parsing as RFC3339 format
@@ -81,9 +86,9 @@ func (s *AnalyticsService) GetUsage(ctx context.Context, userID, startDateStr, e
 	var totalEvents int64
 
 	for _, event := range s.events {
-		if event.UserID == userID && 
-		   event.Timestamp.After(startDate) && 
-		   event.Timestamp.Before(endDate.Add(24*time.Hour)) {
+		if event.UserID == userID &&
+			event.Timestamp.After(startDate) &&
+			event.Timestamp.Before(endDate.Add(24*time.Hour)) {
 			totalEvents++
 			eventsByType[event.EventType]++
 		}
@@ -93,9 +98,9 @@ func (s *AnalyticsService) GetUsage(ctx context.Context, userID, startDateStr, e
 	billingSummary := s.calculateBillingSummary(eventsByType)
 
 	usage := &UsageSummary{
-		UserID:        userID,
-		TotalEvents:   totalEvents,
-		EventsByType:  eventsByType,
+		UserID:         userID,
+		TotalEvents:    totalEvents,
+		EventsByType:   eventsByType,
 		BillingSummary: billingSummary,
 		Period: UsagePeriod{
 			StartDate: startDate,
@@ -106,18 +111,51 @@ func (s *AnalyticsService) GetUsage(ctx context.Context, userID, startDateStr, e
 	return usage, nil
 }
 
-// validateEventData validates the incoming event data
+// validateEventData validates the incoming event data using schema validation
 func (s *AnalyticsService) validateEventData(eventData map[string]interface{}) error {
-	// Check required fields
-	if eventData["event_type"] == nil {
-		return fmt.Errorf("event_type is required")
+	// Use the schema validator for comprehensive validation
+	return s.schemaValidator.ValidateEvent(eventData)
+}
+
+// enrichEventData adds additional metadata to the event data
+func (s *AnalyticsService) enrichEventData(eventData map[string]interface{}, apiKey, userID string) map[string]interface{} {
+	// Create a copy of the event data to avoid modifying the original
+	enriched := make(map[string]interface{})
+	for k, v := range eventData {
+		enriched[k] = v
 	}
 
-	if _, ok := eventData["event_type"].(string); !ok {
-		return fmt.Errorf("event_type must be a string")
+	// Add timestamp if not present
+	if _, exists := enriched["timestamp"]; !exists {
+		enriched["timestamp"] = time.Now()
 	}
 
-	return nil
+	// Add session ID if not present
+	if _, exists := enriched["session_id"]; !exists {
+		enriched["session_id"] = fmt.Sprintf("sess_%s", uuid.New().String()[:8])
+	}
+
+	// Add IP address if not present (simulating IP detection)
+	if _, exists := enriched["ip_address"]; !exists {
+		enriched["ip_address"] = "127.0.0.1" // Default IP for testing
+	}
+
+	// Add user agent if not present (simulating browser detection)
+	if _, exists := enriched["user_agent"]; !exists {
+		enriched["user_agent"] = "Mozilla/5.0 (compatible; AnalyticsService/1.0)"
+	}
+
+	// Add source if not present
+	if _, exists := enriched["source"]; !exists {
+		enriched["source"] = "api"
+	}
+
+	// Ensure properties map exists
+	if _, exists := enriched["properties"]; !exists {
+		enriched["properties"] = make(map[string]interface{})
+	}
+
+	return enriched
 }
 
 // getStringValue safely extracts a string value from the event data
@@ -154,7 +192,7 @@ func (s *AnalyticsService) calculateBillingSummary(eventsByType map[string]int64
 		case "click":
 			cost = float64(count) * 0.002 // $0.002 per click
 		case "conversion":
-			cost = float64(count) * 0.01  // $0.01 per conversion
+			cost = float64(count) * 0.01 // $0.01 per conversion
 		default:
 			cost = float64(count) * 0.0005 // $0.0005 per other event
 		}

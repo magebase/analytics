@@ -27,6 +27,7 @@ The service follows a clean architecture pattern with:
 The analytics service consumes events from multiple sources:
 
 ### Billing Service Events
+
 - `billing.user.subscription.created`
 - `billing.user.subscription.updated`
 - `billing.user.subscription.cancelled`
@@ -34,17 +35,20 @@ The analytics service consumes events from multiple sources:
 - `billing.payment.failed`
 
 ### Authentication Service Events
+
 - `auth.user.login`
 - `auth.user.logout`
 - `auth.user.registered`
 - `auth.user.password.changed`
 
 ### Payment Service Events
+
 - `payments.transaction.completed`
 - `payments.transaction.failed`
 - `payments.refund.processed`
 
 ### Analytics Events
+
 - `analytics.page.view`
 - `analytics.user.action`
 - `analytics.conversion`
@@ -52,14 +56,17 @@ The analytics service consumes events from multiple sources:
 ## API Endpoints
 
 ### POST /api/v1/analytics/events
+
 Track an analytics event.
 
 **Headers:**
+
 - `X-API-Key`: Required API key for authentication
 - `X-User-ID`: Required user identifier
 - `Content-Type`: application/json
 
 **Request Body:**
+
 ```json
 {
   "event_type": "page_view",
@@ -72,6 +79,7 @@ Track an analytics event.
 ```
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -82,14 +90,17 @@ Track an analytics event.
 ```
 
 ### GET /api/v1/analytics/usage
+
 Retrieve usage statistics for a user.
 
 **Query Parameters:**
+
 - `user_id`: Required user identifier
 - `start_date`: Start date (YYYY-MM-DD format, defaults to 30 days ago)
 - `end_date`: End date (YYYY-MM-DD format, defaults to today)
 
 **Response:**
+
 ```json
 {
   "total_events": 42,
@@ -114,9 +125,11 @@ Retrieve usage statistics for a user.
 ```
 
 ### GET /api/v1/kafka/status
+
 Get the status of the Kafka consumer service.
 
 **Response:**
+
 ```json
 {
   "status": "running",
@@ -126,9 +139,11 @@ Get the status of the Kafka consumer service.
 ```
 
 ### GET /health
+
 Health check endpoint that includes Kafka status.
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -140,6 +155,7 @@ Health check endpoint that includes Kafka status.
 ## Development Setup
 
 ### Prerequisites
+
 - Go 1.23 or later
 - Git
 - Kafka (optional, for local development)
@@ -147,22 +163,26 @@ Health check endpoint that includes Kafka status.
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone <repository-url>
 cd analytics
 ```
 
 2. Install dependencies:
+
 ```bash
 go mod tidy
 ```
 
 3. Run tests:
+
 ```bash
 go test ./test/ -v
 ```
 
 4. Start the service:
+
 ```bash
 go run main/main.go
 ```
@@ -188,27 +208,34 @@ If Kafka is not available, the service will start without the consumer and log a
 This project follows Test-Driven Development (TDD) principles with the Red-Green-Refactor cycle:
 
 ### 🟥 RED Phase
+
 Write failing tests that define the expected behavior:
+
 ```bash
 go test ./test/ -v
 # Tests should fail initially
 ```
 
 ### 🟩 GREEN Phase
+
 Implement the minimum code to make tests pass:
+
 ```bash
 go test ./test/ -v
 # All tests should now pass
 ```
 
 ### ✅ Commit
+
 After tests pass, commit with descriptive messages:
+
 ```bash
 git add .
 git commit -m "feat: implement API usage tracking to pass test"
 ```
 
 ### 🛠 REFACTOR Phase
+
 Improve code structure and readability while maintaining test coverage.
 
 ## Project Structure

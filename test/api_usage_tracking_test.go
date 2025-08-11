@@ -44,6 +44,7 @@ func TestAnalyticsService(t *testing.T) {
 	// Test event tracking
 	eventData := map[string]interface{}{
 		"event_type": "page_view",
+		"user_id":    "user123",
 		"page":       "/home",
 	}
 
@@ -61,8 +62,14 @@ func TestUsageCalculation(t *testing.T) {
 	service := app.NewAnalyticsService()
 	
 	// Track some events
-	eventData1 := map[string]interface{}{"event_type": "page_view"}
-	eventData2 := map[string]interface{}{"event_type": "click"}
+	eventData1 := map[string]interface{}{
+		"event_type": "page_view",
+		"user_id":    "user123",
+	}
+	eventData2 := map[string]interface{}{
+		"event_type": "click",
+		"user_id":    "user123",
+	}
 	
 	_, err := service.TrackEvent(nil, eventData1, "api-key", "user123")
 	assert.NoError(t, err)
