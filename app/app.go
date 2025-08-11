@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -20,6 +22,7 @@ type App struct {
 	tracer          trace.Tracer
 	port            string
 	analyticsService *AnalyticsService
+	kafkaConsumer   *KafkaConsumerService
 }
 
 // NewApp creates a new analytics application instance
@@ -47,41 +50,111 @@ func NewApp(port string) *App {
 	// Initialize analytics service
 	analyticsService := NewAnalyticsService()
 
-	return &App{
+	// Create app instance first
+	appInstance := &App{
 		app:             app,
 		tracer:          tracer,
 		port:            port,
 		analyticsService: analyticsService,
+		kafkaConsumer:   nil, // Will be initialized after creation
 	}
+
+	// Initialize Kafka consumer service
+	kafkaConsumer := appInstance.initializeKafkaConsumer()
+	appInstance.kafkaConsumer = kafkaConsumer
+
+	return appInstance
+}
+
+// initializeKafkaConsumer initializes the Kafka consumer service
+func (s *App) initializeKafkaConsumer() *KafkaConsumerService {
+	// Get Kafka configuration from environment
+	brokers := s.getKafkaBrokers()
+	topics := s.getKafkaTopics()
+
+	if len(brokers) == 0 || len(topics) == 0 {
+		log.Println("Warning: Kafka configuration not found, consumer service will not start")
+		return nil
+	}
+
+	consumer, err := NewKafkaConsumerService(brokers, topics)
+	if err != nil {
+		log.Printf("Warning: Failed to create Kafka consumer: %v", err)
+		return nil
+	}
+
+	// Start the consumer service
+	if err := consumer.Start(); err != nil {
+		log.Printf("Warning: Failed to start Kafka consumer: %v", err)
+		return nil
+	}
+
+	log.Printf("Kafka consumer service started for topics: %v", topics)
+	return consumer
+}
+
+// getKafkaBrokers gets Kafka broker addresses from environment
+func (s *App) getKafkaBrokers() []string {
+	brokers := os.Getenv("KAFKA_BROKERS")
+	if brokers == "" {
+		return []string{"localhost:9092"} // Default
+	}
+	return strings.Split(brokers, ",")
+}
+
+// getKafkaTopics gets Kafka topics from environment
+func (s *App) getKafkaTopics() []string {
+	topics := os.Getenv("KAFKA_TOPICS")
+	if topics == "" {
+		return []string{"billing", "auth", "payments", "analytics"} // Default topics
+	}
+	return strings.Split(topics, ",")
 }
 
 // SetupRoutes configures all the application routes
-func (a *App) SetupRoutes() {
+func (s *App) SetupRoutes() {
 	// Health check endpoint
-	a.app.Get("/health", a.healthCheck)
+	s.app.Get("/health", s.healthCheck)
 	
 	// Analytics endpoints
-	analytics := a.app.Group("/api/v1/analytics")
-	analytics.Post("/events", a.trackEvent)
-	analytics.Get("/usage", a.getUsage)
+	analytics := s.app.Group("/api/v1/analytics")
+	analytics.Post("/events", s.trackEvent)
+	analytics.Get("/usage", s.getUsage)
+	
+	// Kafka consumer status endpoint
+	s.app.Get("/api/v1/kafka/status", s.getKafkaStatus)
 }
 
 // Start begins the application server
-func (a *App) Start(ctx context.Context) error {
-	log.Printf("Starting analytics service on port %s", a.port)
-	return a.app.Listen(":" + a.port)
+func (s *App) Start(ctx context.Context) error {
+	log.Printf("Starting analytics service on port %s", s.port)
+	return s.app.Listen(":" + s.port)
+}
+
+// Stop gracefully shuts down the application
+func (s *App) Stop() {
+	if s.kafkaConsumer != nil {
+		s.kafkaConsumer.Stop()
+	}
+	log.Println("Analytics service stopped")
 }
 
 // healthCheck handles health check requests
-func (a *App) healthCheck(c *fiber.Ctx) error {
+func (s *App) healthCheck(c *fiber.Ctx) error {
+	kafkaStatus := "disabled"
+	if s.kafkaConsumer != nil {
+		kafkaStatus = "running"
+	}
+
 	return c.JSON(fiber.Map{
 		"status":  "healthy",
 		"service": "analytics",
+		"kafka":   kafkaStatus,
 	})
 }
 
 // trackEvent handles analytics event tracking
-func (a *App) trackEvent(c *fiber.Ctx) error {
+func (s *App) trackEvent(c *fiber.Ctx) error {
 	// Parse request body
 	var eventData map[string]interface{}
 	if err := c.BodyParser(&eventData); err != nil {
@@ -107,7 +180,7 @@ func (a *App) trackEvent(c *fiber.Ctx) error {
 	}
 
 	// Track the event
-	event, err := a.analyticsService.TrackEvent(c.Context(), eventData, apiKey, userID)
+	event, err := s.analyticsService.TrackEvent(c.Context(), eventData, apiKey, userID)
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -124,7 +197,7 @@ func (a *App) trackEvent(c *fiber.Ctx) error {
 }
 
 // getUsage retrieves usage statistics
-func (a *App) getUsage(c *fiber.Ctx) error {
+func (s *App) getUsage(c *fiber.Ctx) error {
 	// Extract query parameters
 	userID := c.Query("user_id")
 	startDate := c.Query("start_date")
@@ -145,7 +218,7 @@ func (a *App) getUsage(c *fiber.Ctx) error {
 	}
 
 	// Get usage statistics
-	usage, err := a.analyticsService.GetUsage(c.Context(), userID, startDate, endDate)
+	usage, err := s.analyticsService.GetUsage(c.Context(), userID, startDate, endDate)
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -162,12 +235,26 @@ func (a *App) getUsage(c *fiber.Ctx) error {
 	})
 }
 
+// getKafkaStatus returns the status of the Kafka consumer service
+func (s *App) getKafkaStatus(c *fiber.Ctx) error {
+	status := "disabled"
+	if s.kafkaConsumer != nil {
+		status = "running"
+	}
+
+	return c.JSON(fiber.Map{
+		"status": status,
+		"topics": s.getKafkaTopics(),
+		"brokers": s.getKafkaBrokers(),
+	})
+}
+
 // GetFiberApp returns the underlying Fiber app for testing purposes
-func (a *App) GetFiberApp() *fiber.App {
-	return a.app
+func (s *App) GetFiberApp() *fiber.App {
+	return s.app
 }
 
 // GetAnalyticsService returns the analytics service for testing purposes
-func (a *App) GetAnalyticsService() *AnalyticsService {
-	return a.analyticsService
+func (s *App) GetAnalyticsService() *AnalyticsService {
+	return s.analyticsService
 }

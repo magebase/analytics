@@ -1,12 +1,13 @@
 # Analytics Service
 
-A Go-based analytics service that tracks API usage and integrates with billing systems for PaaS platforms.
+A Go-based analytics service that tracks API usage, integrates with billing systems, and consumes events from other services via Kafka for comprehensive analytics processing.
 
 ## Features
 
 - **Event Tracking**: Track analytics events with automatic billing integration
 - **Usage Analytics**: Retrieve usage statistics with cost breakdown
 - **Billing Integration**: Automatic billing event generation for tracked events
+- **Kafka Event Sink**: Consume events from billing, auth, payments, and other services
 - **RESTful API**: Clean HTTP endpoints for event tracking and usage retrieval
 - **OpenTelemetry**: Built-in tracing and observability
 - **Validation**: Input validation and error handling
@@ -17,8 +18,36 @@ The service follows a clean architecture pattern with:
 
 - **App Layer**: HTTP server and routing using Fiber
 - **Service Layer**: Business logic for analytics and billing
+- **Kafka Consumer**: Event ingestion from other services
 - **Models**: Data structures for events and usage
 - **Testing**: Comprehensive test coverage following TDD principles
+
+## Event Sources
+
+The analytics service consumes events from multiple sources:
+
+### Billing Service Events
+- `billing.user.subscription.created`
+- `billing.user.subscription.updated`
+- `billing.user.subscription.cancelled`
+- `billing.payment.completed`
+- `billing.payment.failed`
+
+### Authentication Service Events
+- `auth.user.login`
+- `auth.user.logout`
+- `auth.user.registered`
+- `auth.user.password.changed`
+
+### Payment Service Events
+- `payments.transaction.completed`
+- `payments.transaction.failed`
+- `payments.refund.processed`
+
+### Analytics Events
+- `analytics.page.view`
+- `analytics.user.action`
+- `analytics.conversion`
 
 ## API Endpoints
 
@@ -84,11 +113,36 @@ Retrieve usage statistics for a user.
 }
 ```
 
+### GET /api/v1/kafka/status
+Get the status of the Kafka consumer service.
+
+**Response:**
+```json
+{
+  "status": "running",
+  "topics": ["billing", "auth", "payments", "analytics"],
+  "brokers": ["localhost:9092"]
+}
+```
+
+### GET /health
+Health check endpoint that includes Kafka status.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "analytics",
+  "kafka": "running"
+}
+```
+
 ## Development Setup
 
 ### Prerequisites
-- Go 1.21 or later
+- Go 1.23 or later
 - Git
+- Kafka (optional, for local development)
 
 ### Installation
 
@@ -114,6 +168,20 @@ go run main/main.go
 ```
 
 The service will start on port 8080 by default. You can change this by setting the `PORT` environment variable.
+
+### Kafka Configuration
+
+The service can be configured to consume events from Kafka topics:
+
+```bash
+# Kafka broker addresses (comma-separated)
+export KAFKA_BROKERS=localhost:9092,kafka2:9092
+
+# Kafka topics to consume (comma-separated)
+export KAFKA_TOPICS=billing,auth,payments,analytics
+```
+
+If Kafka is not available, the service will start without the consumer and log appropriate warnings.
 
 ## Testing (TDD Workflow)
 
@@ -150,11 +218,13 @@ analytics/
 ├── app/                    # Application logic
 │   ├── app.go             # Main app structure and HTTP handlers
 │   ├── models.go          # Data models and structures
-│   └── service.go         # Business logic service layer
+│   ├── service.go         # Business logic service layer
+│   └── kafka_consumer.go  # Kafka consumer service
 ├── main/                  # Entry point
 │   └── main.go           # Main function and server startup
 ├── test/                  # Test files
-│   └── api_usage_tracking_test.go
+│   ├── api_usage_tracking_test.go
+│   └── kafka_consumer_test.go
 ├── go.mod                 # Go module dependencies
 └── README.md             # This file
 ```
@@ -162,6 +232,7 @@ analytics/
 ## Dependencies
 
 - **Fiber**: Fast HTTP web framework
+- **Sarama**: Kafka client library
 - **OpenTelemetry**: Observability and tracing
 - **UUID**: Unique identifier generation
 - **Testify**: Testing utilities and assertions
@@ -169,6 +240,8 @@ analytics/
 ## Environment Variables
 
 - `PORT`: Server port (default: 8080)
+- `KAFKA_BROKERS`: Kafka broker addresses (comma-separated, default: localhost:9092)
+- `KAFKA_TOPICS`: Kafka topics to consume (comma-separated, default: billing,auth,payments,analytics)
 
 ## Contributing
 

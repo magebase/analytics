@@ -16,6 +16,18 @@ type AnalyticsEvent struct {
 	Properties  map[string]interface{} `json:"properties,omitempty"`
 	APIKey      string                 `json:"api_key"`
 	BillingEventID string              `json:"billing_event_id,omitempty"`
+	Source      string                 `json:"source,omitempty"`
+}
+
+// CrossServiceEvent represents events from other services (billing, auth, payments, etc.)
+type CrossServiceEvent struct {
+	ID          string                 `json:"id"`
+	Source      string                 `json:"source"`           // e.g., "billing", "auth", "payments"
+	EventType   string                 `json:"event_type"`       // e.g., "user.login", "payment.completed"
+	UserID      string                 `json:"user_id"`
+	Timestamp   time.Time              `json:"timestamp"`
+	Data        map[string]interface{} `json:"data"`             // Service-specific data
+	CorrelationID string               `json:"correlation_id,omitempty"`
 }
 
 // UsageSummary represents usage statistics for a user
@@ -40,6 +52,17 @@ type UsagePeriod struct {
 	EndDate   time.Time `json:"end_date"`
 }
 
+// BillingEvent represents a billing event for cost tracking
+type BillingEvent struct {
+	ID          string    `json:"id"`
+	UserID      string    `json:"user_id"`
+	EventType   string    `json:"event_type"`
+	Amount      float64   `json:"amount"`
+	Currency    string    `json:"currency"`
+	Timestamp   time.Time `json:"timestamp"`
+	Description string    `json:"description"`
+}
+
 // NewAnalyticsEvent creates a new analytics event with a unique ID
 func NewAnalyticsEvent(eventType, userID, page, apiKey string, properties map[string]interface{}) *AnalyticsEvent {
 	return &AnalyticsEvent{
@@ -50,5 +73,31 @@ func NewAnalyticsEvent(eventType, userID, page, apiKey string, properties map[st
 		Timestamp:  time.Now(),
 		Properties: properties,
 		APIKey:     apiKey,
+		Source:     "analytics",
+	}
+}
+
+// NewCrossServiceEvent creates a new cross-service event
+func NewCrossServiceEvent(source, eventType, userID string, data map[string]interface{}) *CrossServiceEvent {
+	return &CrossServiceEvent{
+		ID:        uuid.New().String(),
+		Source:    source,
+		EventType: eventType,
+		UserID:    userID,
+		Timestamp: time.Now(),
+		Data:      data,
+	}
+}
+
+// NewBillingEvent creates a new billing event
+func NewBillingEvent(userID, eventType string, amount float64, description string) *BillingEvent {
+	return &BillingEvent{
+		ID:          uuid.New().String(),
+		UserID:      userID,
+		EventType:   eventType,
+		Amount:      amount,
+		Currency:    "USD",
+		Timestamp:   time.Now(),
+		Description: description,
 	}
 }
