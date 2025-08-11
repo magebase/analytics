@@ -163,7 +163,7 @@ func TestEventEnrichment(t *testing.T) {
 		// Verify that the event was enriched with additional metadata
 		// The enrichEventData method ensures properties map exists and adds metadata
 		assert.NotNil(t, event.Properties, "Event should have properties map")
-		
+
 		// Check that the event has the expected enriched data
 		// Note: The enrichment happens in the service layer, so we can't directly
 		// access the enriched data, but we can verify the event was processed correctly
@@ -173,7 +173,7 @@ func TestEventEnrichment(t *testing.T) {
 		assert.NotEmpty(t, event.ID, "Event should have an ID")
 		assert.NotEmpty(t, event.BillingEventID, "Event should have a billing event ID")
 		assert.NotZero(t, event.Timestamp, "Event should have a timestamp")
-		
+
 		// Test that enrichment preserves existing data and adds defaults
 		// The enrichEventData method should have ensured all required fields exist
 		assert.NotNil(t, event.Properties, "Properties map should exist after enrichment")

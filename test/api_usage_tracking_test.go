@@ -18,7 +18,7 @@ func TestAPITrackingEndpoint(t *testing.T) {
 
 	// Test that the app was created successfully
 	assert.NotNil(t, app, "App should be created successfully")
-	
+
 	// Test that the analytics service was initialized
 	assert.NotNil(t, app.GetAnalyticsService(), "Analytics service should be initialized")
 }
@@ -31,7 +31,7 @@ func TestUsageRetrievalEndpoint(t *testing.T) {
 
 	// Test that the app was created successfully
 	assert.NotNil(t, app, "App should be created successfully")
-	
+
 	// Test that the analytics service was initialized
 	assert.NotNil(t, app.GetAnalyticsService(), "Analytics service should be initialized")
 }
@@ -60,7 +60,7 @@ func TestAnalyticsService(t *testing.T) {
 // TestUsageCalculation tests usage calculation functionality
 func TestUsageCalculation(t *testing.T) {
 	service := app.NewAnalyticsService()
-	
+
 	// Track some events
 	eventData1 := map[string]interface{}{
 		"event_type": "page_view",
@@ -70,10 +70,10 @@ func TestUsageCalculation(t *testing.T) {
 		"event_type": "click",
 		"user_id":    "user123",
 	}
-	
+
 	_, err := service.TrackEvent(nil, eventData1, "api-key", "user123")
 	assert.NoError(t, err)
-	
+
 	_, err = service.TrackEvent(nil, eventData2, "api-key", "user123")
 	assert.NoError(t, err)
 
@@ -81,14 +81,14 @@ func TestUsageCalculation(t *testing.T) {
 	currentYear := time.Now().Year()
 	startDate := fmt.Sprintf("%d-01-01", currentYear)
 	endDate := fmt.Sprintf("%d-12-31", currentYear)
-	
+
 	// Get usage
 	usage, err := service.GetUsage(nil, "user123", startDate, endDate)
 	assert.NoError(t, err, "Usage retrieval should succeed")
 	assert.NotNil(t, usage, "Usage should be returned")
 	assert.Equal(t, int64(2), usage.TotalEvents, "Should have 2 events")
 	assert.Equal(t, "user123", usage.UserID, "User ID should match")
-	
+
 	// Verify billing summary
 	assert.NotNil(t, usage.BillingSummary, "Billing summary should be present")
 	assert.Contains(t, usage.BillingSummary.CostBreakdown, "page_view", "Should have page_view cost")

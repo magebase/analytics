@@ -11,8 +11,9 @@ import (
 
 // AnalyticsService handles analytics event processing and billing integration
 type AnalyticsService struct {
-	events           map[string]*AnalyticsEvent // In-memory storage for now
-	schemaValidator  *SchemaValidator           // Schema validation for events
+	events          map[string]*AnalyticsEvent // In-memory storage for now
+	schemaValidator *SchemaValidator           // Schema validation for events
+	billingClient   *BillingClient            // Billing service integration
 }
 
 // NewAnalyticsService creates a new analytics service instance
@@ -20,6 +21,7 @@ func NewAnalyticsService() *AnalyticsService {
 	return &AnalyticsService{
 		events:          make(map[string]*AnalyticsEvent),
 		schemaValidator: NewSchemaValidator(),
+		billingClient:   NewBillingClient(""), // Use default billing service URL
 	}
 }
 
@@ -44,8 +46,23 @@ func (s *AnalyticsService) TrackEvent(ctx context.Context, eventData map[string]
 		APIKey:     apiKey,
 	}
 
-	// Generate billing event ID (simulating billing integration)
-	event.BillingEventID = uuid.New().String()
+	// Track API call for billing purposes
+	endpoint := "/api/v1/analytics/events"
+	metadata := map[string]interface{}{
+		"event_type": event.EventType,
+		"api_key":    apiKey,
+		"properties": event.Properties,
+	}
+
+	if err := s.billingClient.TrackAPICall(ctx, userID, endpoint, metadata); err != nil {
+		// Log the error but don't fail the event tracking
+		log.Printf("Warning: Failed to track billing event: %v", err)
+		// Generate a fallback billing event ID
+		event.BillingEventID = uuid.New().String()
+	} else {
+		// Generate billing event ID for correlation
+		event.BillingEventID = uuid.New().String()
+	}
 
 	// Store event (in-memory for now)
 	s.events[event.ID] = event
@@ -54,6 +71,22 @@ func (s *AnalyticsService) TrackEvent(ctx context.Context, eventData map[string]
 	log.Printf("Tracked event: %s for user: %s, billing_event_id: %s", event.EventType, event.UserID, event.BillingEventID)
 
 	return event, nil
+}
+
+// TrackAPIUsage tracks API usage for any endpoint (for middleware usage)
+func (s *AnalyticsService) TrackAPIUsage(ctx context.Context, userID, endpoint, method string, metadata map[string]interface{}) error {
+	if s.billingClient == nil {
+		return fmt.Errorf("billing client not initialized")
+	}
+
+	// Add method to metadata
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+	metadata["method"] = method
+	metadata["timestamp"] = time.Now()
+
+	return s.billingClient.TrackAPICall(ctx, userID, endpoint, metadata)
 }
 
 // GetUsage retrieves usage statistics for a user
