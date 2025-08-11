@@ -154,11 +154,11 @@ func TestFunnelService(t *testing.T) {
 
 	t.Run("FunnelResultStructure", func(t *testing.T) {
 		result := app.FunnelResult{
-			FunnelID:      "funnel_123",
-			FunnelName:    "Test Funnel",
+			FunnelID:       "funnel_123",
+			FunnelName:     "Test Funnel",
 			ConversionRate: 15.5,
-			TotalUsers:    1000,
-			ComputedAt:    time.Now(),
+			TotalUsers:     1000,
+			ComputedAt:     time.Now(),
 		}
 
 		assert.Equal(t, "funnel_123", result.FunnelID)
@@ -170,11 +170,11 @@ func TestFunnelService(t *testing.T) {
 
 	t.Run("StepResultStructure", func(t *testing.T) {
 		stepResult := app.StepResult{
-			StepID:        "step1",
-			StepName:      "Page View",
-			EventCount:    1500,
-			UniqueUsers:   1000,
-			DropOffRate:   0.0,
+			StepID:         "step1",
+			StepName:       "Page View",
+			EventCount:     1500,
+			UniqueUsers:    1000,
+			DropOffRate:    0.0,
 			ConversionRate: 100.0,
 		}
 

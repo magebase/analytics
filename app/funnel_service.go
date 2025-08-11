@@ -29,27 +29,27 @@ type Step struct {
 	EventType   string                 `json:"event_type"`
 	Filters     map[string]interface{} `json:"filters,omitempty"`
 	Order       int                    `json:"order"`
-	Description string                  `json:"description,omitempty"`
+	Description string                 `json:"description,omitempty"`
 }
 
 // FunnelResult represents the computed results of a funnel
 type FunnelResult struct {
-	FunnelID      string           `json:"funnel_id"`
-	FunnelName    string           `json:"funnel_name"`
-	TimeRange     TimeRange        `json:"time_range"`
-	Steps         []StepResult     `json:"steps"`
-	ConversionRate float64         `json:"conversion_rate"`
-	TotalUsers    int64            `json:"total_users"`
-	ComputedAt    time.Time        `json:"computed_at"`
+	FunnelID       string       `json:"funnel_id"`
+	FunnelName     string       `json:"funnel_name"`
+	TimeRange      TimeRange    `json:"time_range"`
+	Steps          []StepResult `json:"steps"`
+	ConversionRate float64      `json:"conversion_rate"`
+	TotalUsers     int64        `json:"total_users"`
+	ComputedAt     time.Time    `json:"computed_at"`
 }
 
 // StepResult represents the results for a specific funnel step
 type StepResult struct {
-	StepID       string  `json:"step_id"`
-	StepName     string  `json:"step_name"`
-	EventCount   int64   `json:"event_count"`
-	UniqueUsers  int64   `json:"unique_users"`
-	DropOffRate  float64 `json:"drop_off_rate"`
+	StepID         string  `json:"step_id"`
+	StepName       string  `json:"step_name"`
+	EventCount     int64   `json:"event_count"`
+	UniqueUsers    int64   `json:"unique_users"`
+	DropOffRate    float64 `json:"drop_off_rate"`
 	ConversionRate float64 `json:"conversion_rate"`
 }
 
@@ -105,7 +105,7 @@ func (s *FunnelService) CreateFunnel(ctx context.Context, name, description stri
 
 	// In a real implementation, this would be stored in a database
 	log.Printf("Created funnel: %s with %d steps", funnel.ID, len(funnel.Steps))
-	
+
 	return funnel, nil
 }
 
@@ -171,11 +171,11 @@ func (s *FunnelService) generateMockStepResults(steps []Step) []StepResult {
 		}
 
 		stepResult := StepResult{
-			StepID:        step.ID,
-			StepName:      step.Name,
-			EventCount:    currentUsers * 2, // Assume 2 events per user on average
-			UniqueUsers:   currentUsers,
-			DropOffRate:   dropOffRate,
+			StepID:         step.ID,
+			StepName:       step.Name,
+			EventCount:     currentUsers * 2, // Assume 2 events per user on average
+			UniqueUsers:    currentUsers,
+			DropOffRate:    dropOffRate,
 			ConversionRate: conversionRate,
 		}
 

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/gofiber/contrib/websocket"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -27,6 +27,7 @@ type App struct {
 	kafkaConsumer    *KafkaConsumerService
 	dashboardService *DashboardService
 	funnelService    *FunnelService
+	heatmapService   *HeatmapService
 }
 
 // NewApp creates a new analytics application instance
@@ -60,6 +61,9 @@ func NewApp(port string) *App {
 	// Initialize funnel service
 	funnelService := NewFunnelService(analyticsService)
 
+	// Initialize heatmap service
+	heatmapService := NewHeatmapService(analyticsService)
+
 	// Create app instance first
 	appInstance := &App{
 		app:              app,
@@ -69,6 +73,7 @@ func NewApp(port string) *App {
 		kafkaConsumer:    nil, // Will be initialized after creation
 		dashboardService: dashboardService,
 		funnelService:    funnelService,
+		heatmapService:   heatmapService,
 	}
 
 	// Start dashboard service
@@ -128,6 +133,16 @@ func (s *App) getKafkaTopics() []string {
 
 // SetupRoutes configures all the application routes
 func (s *App) SetupRoutes() {
+	// Initialize middleware
+	apiTrackingMiddleware := NewAPITrackingMiddleware(s.analyticsService)
+	rateLimitMiddleware := NewRateLimitMiddleware(s.analyticsService)
+	samplingMiddleware := NewSamplingMiddleware(s.analyticsService)
+
+	// Apply global middleware for all routes
+	s.app.Use(apiTrackingMiddleware.TrackAPIUsage())
+	s.app.Use(rateLimitMiddleware.RateLimit())
+	s.app.Use(samplingMiddleware.Sample())
+
 	// Health check endpoint
 	s.app.Get("/health", s.healthCheck)
 
@@ -144,6 +159,12 @@ func (s *App) SetupRoutes() {
 	funnels.Post("/", s.createFunnel)
 	funnels.Get("/:id/compute", s.computeFunnel)
 	funnels.Get("/:id/steps", s.getFunnelSteps)
+
+	// Heatmap endpoints
+	heatmaps := s.app.Group("/api/v1/heatmaps")
+	heatmaps.Post("/", s.createHeatmap)
+	heatmaps.Post("/generate", s.generateHeatmap)
+	heatmaps.Get("/:id", s.getHeatmap)
 
 	// Kafka consumer status endpoint
 	s.app.Get("/api/v1/kafka/status", s.getKafkaStatus)
@@ -293,6 +314,11 @@ func (s *App) GetFunnelService() *FunnelService {
 	return s.funnelService
 }
 
+// GetHeatmapService returns the heatmap service for testing purposes
+func (s *App) GetHeatmapService() *HeatmapService {
+	return s.heatmapService
+}
+
 // createFunnel handles funnel creation requests
 func (s *App) createFunnel(c *fiber.Ctx) error {
 	var request struct {
@@ -416,5 +442,89 @@ func (s *App) getFunnelSteps(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"status": "success",
 		"steps":  steps,
+	})
+}
+
+// createHeatmap handles heatmap creation requests
+func (s *App) createHeatmap(c *fiber.Ctx) error {
+	var request struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Type        string `json:"type"`
+		Page        string `json:"page"`
+		Width       int    `json:"width"`
+		Height      int    `json:"height"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	heatmap, err := s.heatmapService.CreateHeatmap(c.Context(), request.Name, request.Description, request.Type, request.Page, request.Width, request.Height)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"heatmap": heatmap,
+		"message": "Heatmap created successfully",
+	})
+}
+
+// generateHeatmap handles heatmap generation requests
+func (s *App) generateHeatmap(c *fiber.Ctx) error {
+	var request HeatmapQuery
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Set default time range if not provided
+	if request.Start.IsZero() {
+		request.Start = time.Now().AddDate(0, 0, -30)
+	}
+	if request.End.IsZero() {
+		request.End = time.Now()
+	}
+
+	result, err := s.heatmapService.GenerateHeatmap(c.Context(), request)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status": "success",
+		"result": result,
+	})
+}
+
+// getHeatmap retrieves a specific heatmap
+func (s *App) getHeatmap(c *fiber.Ctx) error {
+	heatmapID := c.Params("id")
+	if heatmapID == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "Heatmap ID is required",
+		})
+	}
+
+	heatmap, err := s.heatmapService.GetHeatmap(c.Context(), heatmapID)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"heatmap": heatmap,
 	})
 }
