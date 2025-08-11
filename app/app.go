@@ -128,6 +128,16 @@ func (s *App) getKafkaTopics() []string {
 
 // SetupRoutes configures all the application routes
 func (s *App) SetupRoutes() {
+	// Initialize middleware
+	apiTrackingMiddleware := NewAPITrackingMiddleware(s.analyticsService)
+	rateLimitMiddleware := NewRateLimitMiddleware(s.analyticsService)
+	samplingMiddleware := NewSamplingMiddleware(s.analyticsService)
+
+	// Apply global middleware for all routes
+	s.app.Use(apiTrackingMiddleware.TrackAPIUsage())
+	s.app.Use(rateLimitMiddleware.RateLimit())
+	s.app.Use(samplingMiddleware.Sample())
+
 	// Health check endpoint
 	s.app.Get("/health", s.healthCheck)
 

@@ -86,7 +86,56 @@ func (s *AnalyticsService) TrackAPIUsage(ctx context.Context, userID, endpoint, 
 	metadata["method"] = method
 	metadata["timestamp"] = time.Now()
 
-	return s.billingClient.TrackAPICall(ctx, userID, endpoint, metadata)
+	// Track API call for billing
+	if err := s.billingClient.TrackAPICall(ctx, userID, endpoint, metadata); err != nil {
+		return fmt.Errorf("failed to track API call: %w", err)
+	}
+
+	// Generate billing event for cost tracking
+	billingEvent := &BillingEvent{
+		ID:          uuid.New().String(),
+		UserID:      userID,
+		EventType:   "api_call",
+		Amount:      s.calculateAPICallCost(endpoint, method),
+		Currency:    "USD",
+		Timestamp:   time.Now(),
+		Description: fmt.Sprintf("API call to %s %s", method, endpoint),
+	}
+
+	// Store billing event (in-memory for now)
+	// In a real implementation, this would be sent to a billing service
+	log.Printf("Generated billing event: %s for user: %s, amount: %.4f", 
+		billingEvent.ID, billingEvent.UserID, billingEvent.Amount)
+
+	return nil
+}
+
+// calculateAPICallCost calculates the cost for an API call based on endpoint and method
+func (s *AnalyticsService) calculateAPICallCost(endpoint, method string) float64 {
+	// Base cost per API call
+	baseCost := 0.0001 // $0.0001 per API call
+
+	// Additional costs based on endpoint complexity
+	switch endpoint {
+	case "/api/v1/analytics/events":
+		baseCost += 0.0002 // Event tracking costs more
+	case "/api/v1/funnels/:id/compute":
+		baseCost += 0.001 // Funnel computation costs more
+	case "/api/v1/heatmaps/generate":
+		baseCost += 0.002 // Heatmap generation costs more
+	}
+
+	// Additional costs based on HTTP method
+	switch method {
+	case "POST":
+		baseCost += 0.0001 // POST requests cost more than GET
+	case "PUT":
+		baseCost += 0.0001 // PUT requests cost more than GET
+	case "DELETE":
+		baseCost += 0.0001 // DELETE requests cost more than GET
+	}
+
+	return baseCost
 }
 
 // GetUsage retrieves usage statistics for a user
