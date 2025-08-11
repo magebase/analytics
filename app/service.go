@@ -13,7 +13,7 @@ import (
 type AnalyticsService struct {
 	events          map[string]*AnalyticsEvent // In-memory storage for now
 	schemaValidator *SchemaValidator           // Schema validation for events
-	billingClient   *BillingClient            // Billing service integration
+	billingClient   *BillingClient             // Billing service integration
 }
 
 // NewAnalyticsService creates a new analytics service instance

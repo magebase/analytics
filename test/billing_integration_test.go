@@ -35,7 +35,7 @@ func TestBillingIntegration(t *testing.T) {
 	t.Run("TrackEventWithBilling", func(t *testing.T) {
 		// Create analytics service
 		service := app.NewAnalyticsService()
-		
+
 		// Test event tracking
 		eventData := map[string]interface{}{
 			"event_type": "page_view",
@@ -51,7 +51,7 @@ func TestBillingIntegration(t *testing.T) {
 
 	t.Run("TrackAPIUsage", func(t *testing.T) {
 		service := app.NewAnalyticsService()
-		
+
 		// Test API usage tracking
 		metadata := map[string]interface{}{
 			"ip_address": "192.168.1.1",
@@ -73,10 +73,10 @@ func TestBillingIntegration(t *testing.T) {
 	t.Run("UsageRecordStructure", func(t *testing.T) {
 		// Test usage record structure
 		usageRecord := &app.UsageRecord{
-			UserID:    "user123",
-			Service:   "analytics",
-			Metric:    "api_call",
-			Amount:    1,
+			UserID:  "user123",
+			Service: "analytics",
+			Metric:  "api_call",
+			Amount:  1,
 			Details: map[string]interface{}{
 				"endpoint": "/test",
 				"method":   "GET",

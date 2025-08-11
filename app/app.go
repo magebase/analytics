@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/contrib/websocket"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -23,6 +24,7 @@ type App struct {
 	port             string
 	analyticsService *AnalyticsService
 	kafkaConsumer    *KafkaConsumerService
+	dashboardService *DashboardService
 }
 
 // NewApp creates a new analytics application instance
@@ -50,6 +52,9 @@ func NewApp(port string) *App {
 	// Initialize analytics service
 	analyticsService := NewAnalyticsService()
 
+	// Initialize dashboard service
+	dashboardService := NewDashboardService()
+
 	// Create app instance first
 	appInstance := &App{
 		app:              app,
@@ -57,7 +62,11 @@ func NewApp(port string) *App {
 		port:             port,
 		analyticsService: analyticsService,
 		kafkaConsumer:    nil, // Will be initialized after creation
+		dashboardService: dashboardService,
 	}
+
+	// Start dashboard service
+	dashboardService.Start()
 
 	// Initialize Kafka consumer service
 	kafkaConsumer := appInstance.initializeKafkaConsumer()
@@ -120,6 +129,9 @@ func (s *App) SetupRoutes() {
 	analytics := s.app.Group("/api/v1/analytics")
 	analytics.Post("/events", s.trackEvent)
 	analytics.Get("/usage", s.getUsage)
+
+	// Real-time dashboard WebSocket endpoint
+	s.app.Get("/api/v1/dashboard/feed", websocket.New(s.dashboardService.HandleWebSocket))
 
 	// Kafka consumer status endpoint
 	s.app.Get("/api/v1/kafka/status", s.getKafkaStatus)
@@ -257,4 +269,9 @@ func (s *App) GetFiberApp() *fiber.App {
 // GetAnalyticsService returns the analytics service for testing purposes
 func (s *App) GetAnalyticsService() *AnalyticsService {
 	return s.analyticsService
+}
+
+// GetDashboardService returns the dashboard service for testing purposes
+func (s *App) GetDashboardService() *DashboardService {
+	return s.dashboardService
 }
